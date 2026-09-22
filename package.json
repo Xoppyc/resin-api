@@ -1,0 +1,25 @@
+{
+  "name": "resin-api",
+  "version": "0.4.0",
+  "description": "Official TypeScript type definitions and API contract for Resin plugins",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Xoppyc/resin-api.git"
+  },
+  "keywords": [
+    "resin",
+    "plugin",
+    "api",
+    "markdown",
+    "knowledge-base"
+  ],
+  "author": "Artem",
+  "license": "MIT",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ]
+}
