@@ -585,6 +585,7 @@ export declare class Workspace extends Events {
 	 * @returns {string | null}
 	 */
 	getActiveFile(): string | null;
+	private getLeafFilePath;
 	/**
 	 * Asynchronously creates and initializes a Workspace instance, hydrating the layout tree from disk.
 	 *
@@ -986,6 +987,11 @@ export declare class Vault extends Events {
 	 */
 	onExternalDeleted(relPath: string): void;
 	/**
+	 * Reconciles an external file or folder rename from the OS file watcher.
+	 * Updates in-memory VFS hierarchy, path maps, and emits `file:renamed` in 0ms.
+	 */
+	onExternalRenamed(oldPath: string, newPath: string): Promise<void>;
+	/**
 	 * Deletes a file or directory (alias for trash).
 	 */
 	remove(path: string): Promise<void>;
@@ -1095,6 +1101,8 @@ export interface TaskCache {
 	title: string;
 	raw: string;
 	due?: string;
+	dueDate?: string;
+	isOverdue?: boolean;
 	scheduled?: string;
 	created?: string;
 	completed?: string;
@@ -1127,9 +1135,6 @@ export declare class MetadataCache extends Events {
 	private fileTags;
 	private fileLinks;
 	private isIndexing;
-	private isSaving;
-	private saveTimer;
-	private vaultRef;
 	app: any;
 	/**
 	 * Retrieves parsed metadata for a given file path.
@@ -1176,21 +1181,10 @@ export declare class MetadataCache extends Events {
 	 */
 	renameFile(oldPath: string, newPath: string): void;
 	/**
-	 * Fast incremental vault cache build on startup.
-	 * Hydrates from `.resin/metadata-cache.json` in ~5ms, then only indexes new/modified files.
-	 *
-	 * Non-blocking design:
-	 * - Toast appears immediately before any I/O starts
-	 * - Files are read CONCURRENTLY (not sequentially) within each batch
-	 * - UI thread yields between batches via setTimeout(0)
-	 * - saveToDisk() is deferred via requestIdleCallback to avoid post-index freeze
+	 * Hydrates the in-memory metadata cache directly from the SQLite index in ~5ms.
+	 * Completely eliminates disk file reads and regex parsing on the UI thread.
 	 */
-	buildCache(vault: Vault, onProgress?: (current: number, total: number, path: string) => void): Promise<void>;
-	private requestSave;
-	/**
-	 * Atomically serializes in-memory cache to `<vault>/.resin/metadata-cache.json`.
-	 */
-	saveToDisk(): Promise<void>;
+	buildCache(_vault?: Vault): Promise<void>;
 	/**
 	 * O(1) tag re-indexing: deletes only this note's previous tags and inserts new ones.
 	 */
@@ -1227,6 +1221,12 @@ export interface CoreSettings {
 	confirmFileDelete: boolean;
 	newFileLocation: "root" | "current";
 	showIndentGuides: boolean;
+	showTaskPills: boolean;
+	taskAutoSwapOnEnter: boolean;
+	taskAutoSwapOnBlur: boolean;
+	taskDateFormat: "keyword" | "emoji";
+	taskStampCompletionDate: boolean;
+	taskStampOnlyMetadata: boolean;
 }
 export declare abstract class PluginSettingTab {
 	app: AppAPI;
@@ -1630,7 +1630,7 @@ declare class BannerManager extends Events {
 export type DialogSize = "sm" | "md" | "lg" | "full";
 export interface DialogButton {
 	label: string;
-	variant?: "primary" | "secondary" | "danger" | "ghost";
+	variant?: "mod-cta" | "secondary" | "danger" | "ghost";
 	onClick?: (handle: DialogHandle) => void | boolean | Promise<void | boolean>;
 	autoFocus?: boolean;
 }
@@ -1996,6 +1996,8 @@ export declare function requestUrl(params: RequestUrlParam): Promise<RequestUrlR
  * Scoped, sandboxed API contract provided to each plugin instance.
  */
 export interface AppAPI {
+	readonly appVersion: string;
+	readonly apiVersion: string;
 	/** Reference to workspace layout engine for leaf and split queries */
 	workspace: Workspace;
 	/** Application-wide event bus */
@@ -2089,6 +2091,9 @@ export interface AppAPI {
 	};
 }
 declare class App {
+	/** Application version */
+	readonly appVersion: string;
+	readonly apiVersion: string;
 	/** Active workspace layout tree */
 	readonly workspace: Workspace;
 	/** Active vault storage instance */
@@ -2292,7 +2297,9 @@ export declare class Setting {
 declare class ToggleComponent {
 	inputEl: HTMLInputElement;
 	labelEl: HTMLLabelElement;
+	sliderEl: HTMLElement;
 	constructor(containerEl: HTMLElement);
+	private updateState;
 	setValue(val: boolean): this;
 	getValue(): boolean;
 	onChange(cb: (val: boolean) => void): this;
